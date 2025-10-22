@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web IDE — HTML • CSS • JS</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="app-header" role="banner" aria-label="Web IDE header">
+    <div class="branding">
+      <img src="./assets/favicon.svg" width="20" height="20" alt="" />
+      <h1>Web IDE</h1>
+    </div>
+    <nav class="toolbar" aria-label="Main toolbar">
+      <button id="newFileBtn" title="Create a new file (Ctrl+N)" aria-label="Create a new file">New</button>
+      <button id="saveFileBtn" title="Save current file (Ctrl+S)" aria-label="Save current file">Save</button>
+      <button id="renameFileBtn" title="Rename current file" aria-label="Rename current file">Rename</button>
+      <button id="deleteFileBtn" title="Delete current file" aria-label="Delete current file">Delete</button>
+      <span class="divider" role="separator" aria-hidden="true"></span>
+      <button id="runBtn" title="Run preview (Ctrl+Enter)" aria-label="Run preview">Run ▶</button>
+      <button id="downloadBtn" title="Download all files as a .zip (client-side)" aria-label="Download project as zip">Download</button>
+      <span class="divider" role="separator" aria-hidden="true"></span>
+      <button id="resetBtn" class="danger" title="Reset to starter project" aria-label="Reset to starter project">Reset</button>
+      <button id="themeBtn" title="Toggle theme" aria-label="Toggle theme">Theme</button>
+    </nav>
+  </header>
+
+  <main class="app-main">
+    <aside class="sidebar" aria-label="File explorer">
+      <div class="sidebar-header">
+        <h2>Files</h2>
+        <input id="searchFiles" type="search" placeholder="Filter files…" aria-label="Filter files" />
+      </div>
+      <ul id="fileList" role="tree" aria-label="Project files"></ul>
+      <div class="storage-actions">
+        <button id="importBtn" aria-label="Import project from JSON">Import JSON</button>
+        <button id="exportBtn" aria-label="Export project as JSON">Export JSON</button>
+      </div>
+    </aside>
+
+    <section class="editor" aria-label="Code editor">
+      <div class="tabbar" role="tablist" aria-label="Open files"></div>
+      <label class="sr-only" for="editorArea">Editor</label>
+      <textarea id="editorArea" spellcheck="false"></textarea>
+      <div class="statusbar" role="status" aria-live="polite">
+        <span id="cursorPos">Ln 1, Col 1</span>
+        <span id="fileMeta">Spaces: 2 | UTF-8 | LF</span>
+      </div>
+    </section>
+
+    <section class="preview" aria-label="Live preview">
+      <div class="preview-header">
+        <div class="pane-toggle" role="tablist" aria-label="Preview and Terminal tabs">
+          <button id="paneBtnPreview" role="tab" aria-selected="true" aria-controls="previewFrame">Preview</button>
+          <button id="paneBtnTerminal" role="tab" aria-selected="false" aria-controls="terminalPane">Terminal</button>
+        </div>
+        <h2>Preview</h2>
+        <label class="toggle">
+          <input id="autoRun" type="checkbox" checked />
+          <span>Auto-run</span>
+        </label>
+      </div>
+      <iframe id="previewFrame" title="Live preview frame" sandbox="allow-scripts allow-same-origin" class="pane active"></iframe>
+      <div id="terminalPane" class="pane terminal-embed" role="log" aria-live="polite">
+        <div class="terminal-embed-header">
+          <label class="toggle">
+            <input id="terminalAutoScroll" type="checkbox" checked />
+            <span>Auto-scroll</span>
+          </label>
+          <div class="terminal-embed-actions">
+            <button id="terminalClearBtn" title="Clear terminal" aria-label="Clear terminal">Clear</button>
+            <button id="terminalCopyBtn" title="Copy logs" aria-label="Copy logs">Copy</button>
+          </div>
+        </div>
+        <ul id="terminalList" class="terminal-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer" role="contentinfo">
+    <span>Local-first. No servers. Pure HTML/CSS/JS.</span>
+  </footer>
+
+  <!-- Load terminal logic first so that app.js can reference Terminal -->
+  <script defer src="./terminal.js"></script>
+  <script defer src="./app.js"></script>
+</body>
+</html>
