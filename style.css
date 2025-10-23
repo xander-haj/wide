@@ -58,6 +58,76 @@ body{
 .toolbar .danger{background:color-mix(in srgb, var(--danger) 12%, transparent)}
 .toolbar .divider{width:1px; height:24px; background:var(--border)}
 
+/* Styling for the batch-create modal overlay and its content. The modal covers the
+   entire viewport with a translucent backdrop and centers its content. */
+.modal{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+}
+.modal.hidden{display:none;}
+.modal-overlay{
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.5);
+}
+.modal-content{
+  position:relative;
+  background:var(--surface);
+  color:var(--text);
+  padding:20px;
+  border-radius:10px;
+  width:90%;
+  max-width:520px;
+  max-height:80vh;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+#treeInput{
+  width:100%;
+  min-height:200px;
+  max-height:40vh;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text);
+  resize:vertical;
+  font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+}
+.modal-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+}
+.modal-actions button{
+  padding:8px 12px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  cursor:pointer;
+}
+#treeGenerateBtn{
+  background:var(--accent);
+  color:var(--surface);
+  border:1px solid var(--accent);
+}
+#treeCancelBtn{
+  background:var(--surface-2);
+  color:var(--text);
+  border:1px solid var(--border);
+}
+
 .app-main{
   display:grid;
   grid-template-columns: 260px 1fr 42%;
@@ -111,6 +181,12 @@ body{
 }
 #fileList{list-style:none; padding:0; margin:0; overflow:auto; flex:1; border:1px solid var(--border); border-radius:8px; background:var(--surface-2)}
 #fileList li{padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px}
+#fileList li span:first-child{
+  flex-grow:1;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
 #fileList li:last-child{border-bottom:none}
 #fileList li.active{background:color-mix(in srgb, var(--accent) 12%, transparent)}
 .file-badge{font-size:11px; color:var(--muted)}

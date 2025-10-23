@@ -140,6 +140,13 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
   const importBtn = $("#importBtn");
   const exportBtn = $("#exportBtn");
 
+  // Batch-create modal and its controls
+  const batchCreateBtn = $("#batchCreateBtn");
+  const treeModal = $("#treeModal");
+  const treeInput = $("#treeInput");
+  const treeGenerateBtn = $("#treeGenerateBtn");
+  const treeCancelBtn = $("#treeCancelBtn");
+
   // Pane/Terminal refs
   const paneBtnPreview = $("#paneBtnPreview");
   const paneBtnTerminal = $("#paneBtnTerminal");
@@ -156,18 +163,31 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
    * @param {string} filter Substring to filter file names
    */
   function renderFileList(filter=""){
+    // Render the file list with visual indentation and icons for directories and files. The
+    // path depth (number of nested folders) is used to indent each entry, and only
+    // the base name of the file or folder is displayed for readability. A folder
+    // is indicated by a trailing slash in the stored key or a null value.
     const files = Object.keys(project).sort();
     fileListEl.innerHTML = "";
     for(const f of files){
-      if(filter && !f.toLowerCase().includes(filter.toLowerCase())) continue;
       const li = document.createElement("li");
       li.setAttribute("role","treeitem");
       li.dataset.file = f;
       li.className = f === openFile ? "active" : "";
-      // Determine display for directories vs files
       const isDir = f.endsWith("/") || project[f] === null;
+      // Split the path into segments and determine the depth. Directories and files
+      // both split on '/', ignoring empty segments. Depth is (segments length - 1).
+      const parts = f.split('/').filter(p => p.length > 0);
+      const depth = Math.max(parts.length - 1, 0);
+      // Determine the base name and append '/' for directories
+      const base = parts[parts.length - 1] || "";
+      const baseName = isDir ? `${base}/` : base;
+      // Build the display text with a simple icon prefix for files/folders
+      const icon = isDir ? '📁' : '📄';
       const nameSpan = document.createElement("span");
-      nameSpan.textContent = f;
+      nameSpan.textContent = `${icon} ${baseName}`;
+      // Indent based on depth
+      li.style.paddingLeft = `${depth * 16}px`;
       const badgeSpan = document.createElement("span");
       badgeSpan.className = "file-badge";
       if(isDir){
@@ -185,16 +205,17 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
    * Render the tab bar for open files.
    */
   function renderTabs(){
+    // Show only the currently open file as a tab. All other files are
+    // selected via the sidebar. This simplifies the UI for models that
+    // interact via the file list and avoids clutter from many open tabs.
     tabbarEl.innerHTML = "";
-    for(const f of Object.keys(project).sort()){
-      // Skip directories in the tab bar
-      if(f.endsWith("/") || project[f] === null) continue;
+    if(openFile && !(openFile.endsWith('/') || project[openFile] === null)){
       const btn = document.createElement("button");
       btn.type = "button";
       btn.setAttribute("role","tab");
-      btn.textContent = f;
-      if(f === openFile) btn.classList.add("active");
-      btn.addEventListener("click", () => open(f));
+      btn.textContent = openFile;
+      btn.classList.add("active");
+      btn.addEventListener("click", () => open(openFile));
       tabbarEl.append(btn);
     }
   }
@@ -240,9 +261,25 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
    * @returns {string} The assembled HTML document
    */
   function buildPreviewHTML(){
+    // Determine the HTML content to start with. Default to the project's
+    // `index.html` file if it exists. If it doesn't, fall back to an empty
+    // string to avoid injecting undefined into the preview.
     const html = project["index.html"] || "";
-    const css = project["style.css"] || "";
-    const js  = project["script.js"] || "";
+    // Collect and concatenate all CSS files in the project. This allows the
+    // preview iframe to reflect styles from any number of `.css` files the
+    // user has created, including those nested in directories. Directory
+    // placeholders (entries ending with `/`) are ignored.
+    const css = Object.keys(project)
+      .filter((fname) => fname.toLowerCase().endsWith(".css") && !fname.endsWith("/"))
+      .map((fname) => project[fname] || "")
+      .join("\n");
+    // Similarly collect and concatenate all JavaScript files in the project.
+    // This ensures that any `.js` files the user creates will execute in the
+    // preview, regardless of their names or folder structure.
+    const js = Object.keys(project)
+      .filter((fname) => fname.toLowerCase().endsWith(".js") && !fname.endsWith("/"))
+      .map((fname) => project[fname] || "")
+      .join("\n");
 
     // Bridge to forward errors/console from iframe
     const bridge = `<script id="__error_bridge__">
@@ -269,7 +306,11 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
     // Inline the user's CSS and JS into the HTML for the iframe
     let out = html;
     const styleTag = `<style id="__inline_style__">\n${css}\n</style>`;
-    const scriptTag = `${bridge}\n<script id="__inline_script__">\n${js.replace(/<\//g, "<\\/")}\n<\/script>`;
+    // Escape any closing `</script>` sequences in the concatenated JavaScript to
+    // prevent prematurely terminating the script block when inlined. A simple
+    // replacement is performed here to avoid breaking out of the script tag.
+    const escapedJS = js.replace(/<\//g, "<\\/");
+    const scriptTag = `${bridge}\n<script id="__inline_script__">\n${escapedJS}\n<\/script>`;
 
     if(/<head[\s\S]*?>/i.test(out)){
       out = out.replace(/<head[\s\S]*?>/i, m => m)
@@ -613,6 +654,123 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
   }
 
   // ----------------------------
+  // Batch Create from Tree
+  // ----------------------------
+  /**
+   * Parse an ASCII-style file tree into a list of entries. Each entry
+   * contains the full path and whether it represents a directory. The tree
+   * format may use characters such as ├─, └─, │ and indentation to denote
+   * nesting levels. A trailing slash (/) on a name indicates a directory.
+   *
+   * @param {string} tree The raw tree string provided by the user
+   * @returns {Array<{path:string, dir:boolean}>} A list of file/directory entries
+   */
+  function parseTree(tree){
+    const lines = (tree || "").split(/\r?\n/).filter(l => l.trim().length > 0);
+    const entries = [];
+    let stack = [];
+    let rootSet = false;
+    for(let i=0; i<lines.length; i++){
+      const raw = lines[i];
+      // Count leading spaces to determine indentation. Each level is assumed to be 3 spaces.
+      let spaceCount = 0;
+      while(spaceCount < raw.length && raw[spaceCount] === ' ') spaceCount++;
+      let indent = Math.floor(spaceCount / 3);
+      // Extract the label by stripping drawing characters (├, └, │, ─) from the trimmed segment
+      let label = raw.trim().replace(/[├└│─]+/g, '').trim();
+      if(!label) continue;
+      // If this is the first line and it denotes a directory (ends with slash), treat it as the root folder
+      if(i === 0 && label.endsWith('/')){
+        rootSet = true;
+        stack = [label];
+        entries.push({ path: label, dir: true });
+        continue;
+      }
+      // When a root directory exists, indent levels for subsequent lines start from 1
+      if(rootSet){
+        indent += 1;
+      }
+      // Adjust the stack to match the current indentation level
+      while(stack.length > indent){
+        stack.pop();
+      }
+      // Build the full path using the current stack up to the indent level
+      let base = '';
+      if(indent > 0){
+        base = stack.slice(0, indent).join('');
+      }
+      const fullPath = base + label;
+      if(label.endsWith('/')){
+        // Directory entry
+        entries.push({ path: fullPath, dir: true });
+        // Update the stack for this indentation level
+        if(stack.length > indent){
+          stack[indent] = label;
+        } else {
+          stack.push(label);
+        }
+      } else {
+        entries.push({ path: fullPath, dir: false });
+      }
+    }
+    return entries;
+  }
+
+  /**
+   * Given a file tree string, create blank files and directories within the
+   * current project. Existing files or folders will not be overwritten.
+   * Directory entries are stored as keys ending with '/' and assigned `null`.
+   * File entries are stored with an empty string as their content. Any
+   * missing parent directories are also created automatically.
+   *
+   * @param {string} tree A string representing the desired file tree
+   */
+  function createFromTree(tree){
+    // Clear the current project so only the new files/directories remain. This
+    // creates a fresh workspace before generating the new file tree.
+    project = {};
+    openFile = null;
+    const list = parseTree(tree);
+    for(const { path, dir } of list){
+      if(!path) continue;
+      if(dir){
+        // Ensure directory exists
+        if(!project[path]){
+          project[path] = null;
+        }
+      } else {
+        // Ensure parent directories exist
+        if(path.includes('/')){
+          const parts = path.split('/');
+          // parts will include file name at last index; we create directories for preceding segments
+          let accum = '';
+          for(let i=0; i < parts.length - 1; i++){
+            const seg = parts[i];
+            accum += seg + '/';
+            if(!project[accum]){
+              project[accum] = null;
+            }
+          }
+        }
+        // Create blank file if it doesn't exist
+        if(!project[path]){
+          project[path] = '';
+        }
+      }
+    }
+    // Persist changes
+    saveProject();
+    // Determine the first non-directory file to open (if any)
+    const files = Object.keys(project).filter(name => !(name.endsWith('/') || project[name] === null)).sort();
+    openFile = files[0] || null;
+    // Refresh UI: tabs, file list, editor, and optionally run preview
+    renderTabs();
+    renderFileList();
+    renderEditor();
+    if(autoRun) runPreview();
+  }
+
+  // ----------------------------
   // Preflight checks
   // ----------------------------
   /**
@@ -790,6 +948,34 @@ button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; backg
       document.body.removeChild(textarea);
     }
   });
+
+  // Batch creation modal event handlers
+  // Open the modal when the toolbar button is clicked
+  if(batchCreateBtn && treeModal && treeInput){
+    batchCreateBtn.addEventListener("click", () => {
+      // Clear any previous input and show the modal
+      treeInput.value = "";
+      treeModal.classList.remove("hidden");
+    });
+  }
+  // Cancel button hides the modal without making changes
+  if(treeCancelBtn && treeModal){
+    treeCancelBtn.addEventListener("click", () => {
+      treeModal.classList.add("hidden");
+      if(treeInput) treeInput.value = "";
+    });
+  }
+  // Generate button parses the input and creates the files/directories
+  if(treeGenerateBtn && treeModal){
+    treeGenerateBtn.addEventListener("click", () => {
+      const val = treeInput ? treeInput.value : "";
+      if(val && val.trim().length > 0){
+        createFromTree(val);
+      }
+      treeModal.classList.add("hidden");
+      if(treeInput) treeInput.value = "";
+    });
+  }
 
   // Receive runtime errors from the preview iframe
   window.addEventListener("message", (ev) => {

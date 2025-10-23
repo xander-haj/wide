@@ -21,6 +21,8 @@
       <span class="divider" role="separator" aria-hidden="true"></span>
       <button id="runBtn" title="Run preview (Ctrl+Enter)" aria-label="Run preview">Run ▶</button>
       <button id="downloadBtn" title="Download all files as a .zip (client-side)" aria-label="Download project as zip">Download</button>
+      <!-- New bulk creation button: allows users to paste a file tree and generate blank files -->
+      <button id="batchCreateBtn" title="Create blank files from tree" aria-label="Create blank files from a directory tree">Batch Create</button>
       <span class="divider" role="separator" aria-hidden="true"></span>
       <button id="resetBtn" class="danger" title="Reset to starter project" aria-label="Reset to starter project">Reset</button>
       <button id="themeBtn" title="Toggle theme" aria-label="Toggle theme">Theme</button>
@@ -86,6 +88,22 @@
   <footer class="app-footer" role="contentinfo">
     <span>Local-first. No servers. Pure HTML/CSS/JS.</span>
   </footer>
+
+  <!-- Modal for batch creating files from a pasted tree structure -->
+  <!-- The modal is hidden by default via the `hidden` class. When visible, it overlays the page and allows the user to paste
+       a directory tree (e.g. from an ASCII representation) and generate blank files/folders accordingly. -->
+  <div id="treeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="treeModalTitle">
+    <div class="modal-overlay" tabindex="-1"></div>
+    <div class="modal-content" role="document">
+      <h2 id="treeModalTitle">Batch Create Files</h2>
+      <p>Paste your file tree structure below. Directories should end with a trailing slash (<code>/</code>).</p>
+      <textarea id="treeInput" aria-label="File tree input" placeholder="Paste your tree here..."></textarea>
+      <div class="modal-actions">
+        <button id="treeCancelBtn" type="button" aria-label="Cancel batch creation">Cancel</button>
+        <button id="treeGenerateBtn" type="button" aria-label="Generate files from tree">Generate</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Load terminal logic first so that app.js can reference Terminal -->
   <script defer src="./terminal.js"></script>
