@@ -77,9 +77,37 @@ body{
   margin:0 0 8px 0;
   font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;
 }
-#searchFiles{
-  width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border);
-  background:var(--surface-2); color:var(--text);
+/*
+  New item control: container for creating files or directories. The input accepts a
+  file name or path (directories end with '/') and the button triggers creation.
+*/
+.new-item-control{
+  display:flex;
+  gap:6px;
+  width:100%;
+  /* Add top margin so the control appears below the Files header */
+  margin-top:4px;
+}
+.new-item-control input{
+  flex:1;
+  /* Allow input to shrink when combined with button */
+  min-width:0;
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--surface-2);
+  color:var(--text);
+}
+.new-item-control button{
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:var(--accent);
+  color:var(--surface);
+  cursor:pointer;
+  flex-shrink:0;
+  white-space:nowrap;
+  border:1px solid var(--accent);
 }
 #fileList{list-style:none; padding:0; margin:0; overflow:auto; flex:1; border:1px solid var(--border); border-radius:8px; background:var(--surface-2)}
 #fileList li{padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px}

@@ -31,7 +31,11 @@
     <aside class="sidebar" aria-label="File explorer">
       <div class="sidebar-header">
         <h2>Files</h2>
-        <input id="searchFiles" type="search" placeholder="Filter files…" aria-label="Filter files" />
+        <!-- File/directory creation control: users can type a path and click Create -->
+        <div class="new-item-control">
+          <input id="newItemInput" type="text" placeholder="Enter file or directory (e.g. index.html or src/app.tsx)" aria-label="Enter new file or directory name" />
+          <button id="createItemBtn" type="button" title="Create file or directory" aria-label="Create file or directory">Create</button>
+        </div>
       </div>
       <ul id="fileList" role="tree" aria-label="Project files"></ul>
       <div class="storage-actions">

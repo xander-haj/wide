@@ -45,10 +45,32 @@
    * present in localStorage. Users can freely edit these files.
    */
   const STARTER_FILES = {
-    // The IDE no longer ships with a starter project. This object
-    // remains for backwards compatibility but is intentionally empty.
-    // When no project is found in localStorage, the IDE will start
-    // with an empty file tree and no preset files.
+    "index.html": `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Starter — Web IDE</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Welcome 🎉</h1>
+    <p>You are running the starter project. Edit <code>index.html</code>, <code>style.css</code>, and <code>script.js</code> and click <strong>Run ▶</strong> or enable <strong>Auto-run</strong>.</p>
+    <button id="helloBtn">Click me</button>
+  </main>
+  <script src="./script.js"></script>
+</body>
+</html>`,
+    "style.css": `/* Starter styles */
+body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; margin:0; padding:0; background:#0b0e14; color:#d6deeb}
+.container{max-width:820px; margin:6rem auto; padding:0 1rem}
+h1{font-size:2.2rem; margin-bottom:.5rem}
+p{color:#9aa4b2}
+button{padding:.65rem 1rem; border-radius:.6rem; border:1px solid #1f2534; background:#171c2a; color:#d6deeb; cursor:pointer}`,
+    "script.js": `document.getElementById('helloBtn')?.addEventListener('click', ()=>{
+  alert('Hello from Web IDE starter!');
+});`
   };
 
   /** LocalStorage key for persisting projects. */
@@ -64,8 +86,7 @@
    */
   let project = null;
   /** Currently open file in the editor. */
-  // Currently open file in the editor (empty when no file is selected)
-  let openFile = "";
+  let openFile = "index.html";
   /** Whether auto-run preview is enabled. */
   let autoRun = true;
 
@@ -74,15 +95,19 @@
    */
   function loadProject(){
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
+    if(raw){
+      try{
         project = JSON.parse(raw);
-      } catch {
-        project = {};
+      }catch{
+        project = { ...STARTER_FILES };
       }
-    } else {
-      project = {};
+    }else{
+      project = { ...STARTER_FILES };
     }
+    // Ensure core files always exist
+    if(!project["index.html"]) project["index.html"] = STARTER_FILES["index.html"];
+    if(!project["style.css"])  project["style.css"]  = STARTER_FILES["style.css"];
+    if(!project["script.js"])  project["script.js"]  = STARTER_FILES["script.js"];
   }
   /**
    * Persist the current project to localStorage.
@@ -110,7 +135,8 @@
   const downloadBtn = $("#downloadBtn");
   const resetBtn = $("#resetBtn");
   const themeBtn = $("#themeBtn");
-  const searchFilesEl = $("#searchFiles");
+  const newItemInput = $("#newItemInput");
+  const createItemBtn = $("#createItemBtn");
   const importBtn = $("#importBtn");
   const exportBtn = $("#exportBtn");
 
@@ -138,13 +164,20 @@
       li.setAttribute("role","treeitem");
       li.dataset.file = f;
       li.className = f === openFile ? "active" : "";
-      const isDir = f.endsWith("/");
-      const badge = isDir ? "dir" : `${(project[f] || "").length} ch`;
-      li.innerHTML = `<span>${f}</span><span class="file-badge">${badge}</span>`;
-      // Only attach click handler for files
-      if(!isDir){
-        li.addEventListener("click", () => open(f));
+      // Determine display for directories vs files
+      const isDir = f.endsWith("/") || project[f] === null;
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = f;
+      const badgeSpan = document.createElement("span");
+      badgeSpan.className = "file-badge";
+      if(isDir){
+        badgeSpan.textContent = "dir";
+      }else{
+        const len = (project[f] || "").length;
+        badgeSpan.textContent = `${len} ch`;
       }
+      li.append(nameSpan, badgeSpan);
+      li.addEventListener("click", () => open(f));
       fileListEl.append(li);
     }
   }
@@ -154,8 +187,8 @@
   function renderTabs(){
     tabbarEl.innerHTML = "";
     for(const f of Object.keys(project).sort()){
-      // Do not create tabs for directories
-      if(f.endsWith("/")) continue;
+      // Skip directories in the tab bar
+      if(f.endsWith("/") || project[f] === null) continue;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.setAttribute("role","tab");
@@ -169,13 +202,7 @@
    * Render the editor contents for the currently open file.
    */
   function renderEditor(){
-    if(openFile && !openFile.endsWith("/")){
-      editorEl.value = project[openFile] ?? "";
-      editorEl.removeAttribute("readonly");
-    }else{
-      editorEl.value = "";
-      editorEl.setAttribute("readonly","readonly");
-    }
+    editorEl.value = project[openFile] ?? "";
     editorEl.focus();
     updateCursorPos();
   }
@@ -196,13 +223,11 @@
    */
   function open(fname){
     if(!(fname in project)) return;
-    // Do not open directories in the editor
-    if(fname.endsWith("/")){
-      return;
-    }
+    // Do not open directories
+    if(fname.endsWith('/')) return;
     openFile = fname;
     renderTabs();
-    renderFileList(searchFilesEl.value.trim());
+    renderFileList();
     renderEditor();
   }
 
@@ -215,23 +240,9 @@
    * @returns {string} The assembled HTML document
    */
   function buildPreviewHTML(){
-    // Determine which HTML, CSS, and JS files to include in the preview.
-    // Prefer conventional names but fall back to the first file of each type.
-    let html = project["index.html"] || "";
-    let css  = project["style.css"]  || "";
-    let js   = project["script.js"]  || "";
-    if(!html){
-      const altHtml = Object.keys(project).find((k) => !k.endsWith("/") && k.toLowerCase().endsWith(".html"));
-      if(altHtml) html = project[altHtml] || "";
-    }
-    if(!css){
-      const altCss = Object.keys(project).find((k) => !k.endsWith("/") && k.toLowerCase().endsWith(".css"));
-      if(altCss) css = project[altCss] || "";
-    }
-    if(!js){
-      const altJs = Object.keys(project).find((k) => !k.endsWith("/") && k.toLowerCase().endsWith(".js"));
-      if(altJs) js = project[altJs] || "";
-    }
+    const html = project["index.html"] || "";
+    const css = project["style.css"] || "";
+    const js  = project["script.js"] || "";
 
     // Bridge to forward errors/console from iframe
     const bridge = `<script id="__error_bridge__">
@@ -333,44 +344,59 @@
   /**
    * Create a new file in the project after prompting the user for a name.
    */
-  function newFile(){
-    let name = prompt("New file name (to create a folder end with '/', e.g., src/ or about.html):");
-    if(!name) return;
-    name = name.trim();
-    if(project[name]){
+  function newFile(name){
+    let fname = name;
+    if(!fname){
+      const input = prompt("Enter new file or directory name (end directories with '/'): ") || "";
+      if(!input) return;
+      fname = input;
+    }
+    fname = fname.trim();
+    if(!fname) return;
+    if(project[fname]){
       alert("A file or folder with that name already exists.");
       return;
     }
-    // Detect folder creation by trailing slash
-    if(name.endsWith("/")){
-      project[name] = null;
+    // Detect directory creation by trailing slash
+    if(fname.endsWith('/')){
+      project[fname] = null;
       saveProject();
-      // folders cannot be opened in the editor
+      // Update UI but do not open a directory
       renderTabs();
-      renderFileList(searchFilesEl.value.trim());
+      renderFileList();
       return;
     }
+    // If the filename contains slashes (e.g., src/app.js), ensure all parent directories exist
+    if(fname.includes('/')){
+      const segments = fname.split('/');
+      for(let i=0; i < segments.length - 1; i++){
+        const dirPath = segments.slice(0, i+1).join('/') + '/';
+        if(!project[dirPath]){
+          project[dirPath] = null;
+        }
+      }
+    }
     let stub = "";
-    if(name.toLowerCase().endsWith(".html")){
+    const lower = fname.toLowerCase();
+    if(lower.endsWith(".html")){
       stub = "<!doctype html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"UTF-8\\\">\\n  <meta name=\\\"viewport\\\" content=\\\"width=device-width, initial-scale=1.0\\\">\\n  <title>New Page</title>\\n</head>\\n<body>\\n  <h1>New Page</h1>\\n</body>\\n</html>";
-    }else if(name.toLowerCase().endsWith(".css")){
+    }else if(lower.endsWith(".css")){
       stub = "/* New stylesheet */\\n";
-    }else if(name.toLowerCase().endsWith(".js")){
+    }else if(lower.endsWith(".js")){
       stub = "// New script\\n";
     }
-    project[name] = stub;
+    project[fname] = stub;
     saveProject();
-    open(name);
+    open(fname);
   }
   /** Save the currently open file to the project and optionally run preview. */
   function saveCurrent(){
-    // Only save if the open item is a file
-    if(openFile && !openFile.endsWith("/")){
+    if(openFile && !openFile.endsWith('/')){
       project[openFile] = editorEl.value;
       saveProject();
       fileMetaEl.textContent = `Saved ${openFile} • ${new Date().toLocaleTimeString()}`;
       if(autoRun) runPreview();
-      renderFileList(searchFilesEl.value.trim());
+      renderFileList();
     }
   }
   /** Rename the currently open file, updating project keys accordingly. */
@@ -378,24 +404,23 @@
     const newNameRaw = prompt("Rename file to:", openFile);
     if(!newNameRaw || newNameRaw === openFile) return;
     let newName = newNameRaw.trim();
-    // If renaming a directory, ensure new name ends with '/'
-    if(openFile.endsWith("/") && !newName.endsWith("/")){
-      newName += "/";
+    // For directories ensure trailing slash
+    if(openFile.endsWith('/') && !newName.endsWith('/')){
+      newName += '/';
     }
     if(project[newName]){
       alert("A file or folder with that name already exists.");
       return;
     }
-    if(openFile.endsWith("/")){
-      // Rename folder and its children
+    if(openFile.endsWith('/')){
+      // Rename directory and its children
       const updated = {};
-      const old = openFile;
       for(const k of Object.keys(project)){
-        if(k === old || k.startsWith(old)){
-          const suffix = k.slice(old.length);
+        if(k === openFile || k.startsWith(openFile)){
+          const suffix = k.slice(openFile.length);
           const newKey = newName + suffix;
           updated[newKey] = project[k];
-        } else {
+        }else{
           updated[k] = project[k];
         }
       }
@@ -403,7 +428,7 @@
       saveProject();
       openFile = newName;
       renderTabs();
-      renderFileList(searchFilesEl.value.trim());
+      renderFileList();
       renderEditor();
     } else {
       // Rename file
@@ -416,42 +441,38 @@
   /** Permanently delete the currently open file after user confirmation. */
   function deleteCurrent(){
     if(!confirm(`Delete ${openFile}? This cannot be undone.`)) return;
-    if(openFile.endsWith("/")){
-      // Delete directory and its contents
-      const old = openFile;
-      for(const key of Object.keys(project)){
-        if(key === old || key.startsWith(old)){
-          delete project[key];
+    const isDir = openFile.endsWith('/') || project[openFile] === null;
+    if(isDir){
+      // Remove directory and all nested files
+      for(const k of Object.keys(project)){
+        if(k === openFile || k.startsWith(openFile)){
+          delete project[k];
         }
       }
-      saveProject();
     }else{
       delete project[openFile];
+    }
+    saveProject();
+    // Determine next file to open: choose the next available non-directory file
+    const files = Object.keys(project).filter(name => !(name.endsWith('/') || project[name] === null)).sort();
+    let next = files.find(name => name !== openFile) || files[0] || null;
+    if(!next){
+      // No files left, create a blank placeholder file
+      project["index.html"] = "";
       saveProject();
+      next = "index.html";
     }
-    // Pick next file (skip directories) or leave blank
-    const names = Object.keys(project).sort();
-    const nextFile = names.find((n) => !n.endsWith("/"));
-    if(nextFile){
-      open(nextFile);
-    }else{
-      openFile = "";
-      renderTabs();
-      renderFileList(searchFilesEl.value.trim());
-      editorEl.value = "";
-      fileMetaEl.textContent = "";
-    }
+    open(next);
   }
   /** Reset the entire project back to the starter files after confirmation. */
   function resetProject(){
-    if(!confirm("Reset project? This will erase your local changes.")) return;
-    project = {};
+    if(!confirm("Reset project to starter files? This will erase your local changes.")) return;
+    project = { ...STARTER_FILES };
     saveProject();
-    openFile = "";
+    openFile = "index.html";
     renderTabs();
-    renderFileList(searchFilesEl.value.trim());
+    renderFileList();
     renderEditor();
-    // Running preview with no files produces an empty page
     runPreview();
   }
   /** Export the project as a JSON file that can be re-imported later. */
@@ -475,7 +496,7 @@
         saveProject();
         openFile = Object.keys(project)[0] || "index.html";
         renderTabs();
-        renderFileList(searchFilesEl.value.trim());
+        renderFileList();
         renderEditor();
         runPreview();
       }catch(err){
@@ -601,8 +622,6 @@
     // Iterate through all files in the project and perform syntax checks based on extension
     for(const fname of Object.keys(project)){
       const content = project[fname] || "";
-      // Skip directories
-      if(fname.endsWith("/")) continue;
       if(fname.toLowerCase().endsWith('.html')){
         // Check HTML structure and inline scripts
         checkHTMLFile(fname);
@@ -652,12 +671,10 @@
   // Event handlers
   // ----------------------------
   editorEl.addEventListener("input", () => {
-    if(openFile && !openFile.endsWith("/")){
-      project[openFile] = editorEl.value;
-      saveProject();
-      updateCursorPos();
-      if(autoRun) runPreview();
-    }
+    project[openFile] = editorEl.value;
+    saveProject();
+    updateCursorPos();
+    if(autoRun) runPreview();
   });
   editorEl.addEventListener("keyup", (e) => {
     if(e.key === "Tab"){
@@ -667,10 +684,8 @@
       editorEl.value = v.substring(0, start) + "  " + v.substring(end);
       editorEl.selectionStart = editorEl.selectionEnd = start + 2;
       e.preventDefault();
-      if(openFile && !openFile.endsWith("/")){
-        project[openFile] = editorEl.value;
-        saveProject();
-      }
+      project[openFile] = editorEl.value;
+      saveProject();
     }
     updateCursorPos();
   });
@@ -696,9 +711,29 @@
     autoRun = autoRunEl.checked;
     if(autoRun) runPreview();
   });
-  searchFilesEl.addEventListener("input", () => renderFileList(searchFilesEl.value.trim()));
+  // Removed file search functionality; creation is handled by the new input field.
   importBtn.addEventListener("click", importJSON);
   exportBtn.addEventListener("click", exportJSON);
+
+  // Create new files/directories via sidebar input. On click, read the input
+  // value, call newFile() with it, then clear the field.
+  if(createItemBtn && newItemInput){
+    createItemBtn.addEventListener("click", () => {
+      const value = newItemInput.value.trim();
+      if(value){
+        newFile(value);
+        // Clear input after creation for convenience
+        newItemInput.value = "";
+      }
+    });
+    // Allow pressing Enter in the input to create the item
+    newItemInput.addEventListener("keydown", (e) => {
+      if(e.key === "Enter"){
+        e.preventDefault();
+        createItemBtn.click();
+      }
+    });
+  }
 
   // Pane toggle
   function setPane(which){
